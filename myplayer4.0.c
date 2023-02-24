@@ -20,11 +20,12 @@ void *controller(struct player *myplayer)					//Takes care of the controlling pa
 		
 	while(true)
 	{
-		printf("the value of eos is: %d\n", myplayer->eos);
+		//printf("the value of eos is: %d\n", myplayer->eos);
 		printf("Enter the command you want to give: \n");
 		printf("Enter 'p' to pause/play.\n");
 		printf("Enter 'l' to enter loop mode.\n");
 		printf("Enter 'n' to set new path.\n");
+		printf("Enter 'e' to exit.\n");
 		//printf("Enter 'e' to exit.\n");
 		scanf(" %c",&c);									//Taking the input character
 		
@@ -49,6 +50,14 @@ void *controller(struct player *myplayer)					//Takes care of the controlling pa
                                 	pthread_create(&th1, NULL, runPipeline, myplayer->path); 		// Creating a thread again for playing the new video.
                                 	pthread_exit(NULL); 							//Terminating this self loop
   					break;
+				}
+			case 'e':
+				{
+					gst_element_set_state(myplayer->pipeline, GST_STATE_NULL);
+      					gst_object_unref(myplayer->pipeline);
+      					pthread_cancel(th1);
+      					pthread_exit(NULL);
+      					break;
 				}	
 		   
 		}
@@ -73,14 +82,16 @@ void *runPipeline(char *path2)							//This is th1
 	myplayer->pipeline = gst_parse_launch(myplayer->desc, NULL); 		//Launched the pipeline
 	gst_element_set_state(myplayer->pipeline, GST_STATE_PLAYING); 		//Set the pipleline to playing state
 	pthread_create(&th2, NULL, controller, myplayer);			//Creating the controller pipeline
+
         myplayer->bus = gst_element_get_bus(myplayer->pipeline);		//Initalising bus 
         myplayer->msg = gst_bus_timed_pop_filtered(myplayer->bus, GST_CLOCK_TIME_NONE, GST_MESSAGE_ERROR | GST_MESSAGE_EOS);	//Initialising msg
         
+            
         gst_message_unref(myplayer->msg);					//Freeing resources
   	gst_object_unref(myplayer->bus);
 	gst_element_set_state(myplayer->pipeline, GST_STATE_NULL);
         gst_object_unref(myplayer->pipeline);  
-        myplayer->eos=1;
+        //myplayer->eos=1;
         printf("THE VALUE OF LOOP IS: %d\n", myplayer->loop);
         pthread_cancel(th2);							//Terminating the controller thread
         
