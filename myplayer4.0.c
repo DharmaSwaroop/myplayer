@@ -77,17 +77,47 @@ void *runPipeline(char *path2)							//This is th1
 	strcpy(myplayer->path,path2);						//Copying the path
         sprintf(myplayer->desc, "playbin uri=file://%s", myplayer->path);
         printf("The description is: %s", myplayer->desc );
-        do{
+        //do{
         
 	myplayer->pipeline = gst_parse_launch(myplayer->desc, NULL); 		//Launched the pipeline
 	gst_element_set_state(myplayer->pipeline, GST_STATE_PLAYING); 		//Set the pipleline to playing state
 	pthread_create(&th2, NULL, controller, myplayer);			//Creating the controller pipeline
 
-        myplayer->bus = gst_element_get_bus(myplayer->pipeline);		//Initalising bus 
+        myplayer->bus = gst_element_get_bus(myplayer->pipeline);		//Initalising bus
+        do{ 
         myplayer->msg = gst_bus_timed_pop_filtered(myplayer->bus, GST_CLOCK_TIME_NONE, GST_MESSAGE_ERROR | GST_MESSAGE_EOS);	//Initialising msg
         
+        if (myplayer->msg != NULL) {
+    		GError *err;
+    		gchar *debug_info;
+
+    		switch (GST_MESSAGE_TYPE (myplayer->msg)) {
+      			case GST_MESSAGE_ERROR:
+        			gst_message_parse_error (myplayer->msg, &err, &debug_info);
+        			g_printerr ("Error received from element %s: %s\n",GST_OBJECT_NAME (myplayer->msg->src), err->message);
+        			g_printerr ("Debugging information: %s\n",debug_info ? debug_info : "none");
+        			g_clear_error (&err);
+        			g_free (debug_info);
+        			break;
+      			case GST_MESSAGE_EOS:
+        			g_print ("End-Of-Stream reached.\n");
+        			if(myplayer->loop==1)
+        			{
+        				printf("yeah loop is 1.\n");
+        				myplayer->seek_event = gst_event_new_seek(1.0, GST_FORMAT_TIME, GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_KEY_UNIT, GST_SEEK_TYPE_SET, 0, GST_SEEK_TYPE_NONE, 0);
+        				gst_element_send_event(myplayer->pipeline, myplayer->seek_event);
+        				gst_element_set_state(myplayer->pipeline, GST_STATE_PLAYING);
+        			}
+        			break;
+      			default:
+        			/* We should not reach here because we only asked for ERRORs and EOS */
+        			g_printerr ("Unexpected message received.\n");
+        			break;
+    		}
             
         gst_message_unref(myplayer->msg);					//Freeing resources
+        }
+        }while(myplayer->loop==1);
   	gst_object_unref(myplayer->bus);
 	gst_element_set_state(myplayer->pipeline, GST_STATE_NULL);
         gst_object_unref(myplayer->pipeline);  
@@ -96,7 +126,7 @@ void *runPipeline(char *path2)							//This is th1
         pthread_cancel(th2);							//Terminating the controller thread
         
         
-        }while(myplayer->loop==1);							
+        //}while(myplayer->loop==1);							
         pthread_exit(NULL);
         //pthread_cancel(pthread_self());
    	//printf("still in after kill\n");
